@@ -1,0 +1,11 @@
+{
+  "name": "claude-notify-marketplace",
+  "owner": { "name": "xinix" },
+  "plugins": [
+    {
+      "name": "claude-notify",
+      "source": "./",
+      "description": "Native desktop notification (+ sound) when Claude Code finishes a task or needs your input."
+    }
+  ]
+}
