@@ -1,74 +1,199 @@
 # claude-notify
 
-Native desktop notification (+ sound) when **Claude Code** finishes a task or
-needs your input. Cross-platform: **Linux**, **macOS**, **Windows / WSL**.
+> Native desktop notification (**+ sound**) when [Claude Code](https://docs.claude.com/en/docs/claude-code)
+> finishes a task or needs your input.
 
-Two Claude Code hooks drive it:
+No more staring at the terminal waiting for a long run to finish, or missing a
+permission prompt. When Claude is **done** — or **waiting for you** — your OS
+pops a notification.
 
-| Hook | Fires when |
-|------|------------|
-| `Notification` | Claude is waiting for your input or permission |
-| `Stop` | Claude finished responding (task done) |
+Cross-platform: **Linux** · **macOS** · **Windows / WSL**.
 
-A single script (`hooks/notify.sh`) reads the hook's JSON payload on stdin and
-pops a native notification for your OS.
+---
 
-## Install (as a plugin)
+## How it works
 
-From inside Claude Code:
+Claude Code fires [hooks](https://docs.claude.com/en/docs/claude-code/hooks) on
+lifecycle events. This plugin binds two of them to one script:
+
+| Hook | Fires when | Notification |
+|------|------------|--------------|
+| `Notification` | Claude is waiting for your input or permission | **needs you** |
+| `Stop` | Claude finished responding (task done) | **task done** |
+
+The script (`hooks/notify.sh`) reads the hook's JSON payload on stdin, picks a
+title/body, and calls your OS's native notifier. Zero runtime deps beyond the
+system notify tool.
+
+---
+
+## Install
+
+### Option A — as a plugin (recommended)
+
+From inside Claude Code, add this repo as a marketplace and install:
 
 ```
-/plugin marketplace add /home/xinix/Desktop/projects/claude-notify
+/plugin marketplace add vinixdev/claude-notify
 /plugin install claude-notify@claude-notify-marketplace
 ```
 
-Or, once pushed to GitHub:
+Claude Code shows the new hook commands and asks you to approve them — accept.
+Then restart the session (or run `/hooks`) so they load. Done.
+
+To update later:
 
 ```
-/plugin marketplace add <your-user>/claude-notify
-/plugin install claude-notify@claude-notify-marketplace
+/plugin marketplace update claude-notify-marketplace
 ```
 
-Claude Code asks you to approve the new hook commands the first time — accept.
-Restart the session (or run `/hooks`) so they load.
+### Option B — manual (no plugin)
 
-## Install (manual, no plugin)
+Clone the repo and wire the script into your **user** settings
+(`~/.claude/settings.json`):
 
-Copy the script and wire it into `~/.claude/settings.json`:
+```bash
+git clone https://github.com/vinixdev/claude-notify.git ~/.claude/claude-notify
+chmod +x ~/.claude/claude-notify/hooks/notify.sh
+```
 
 ```jsonc
+// ~/.claude/settings.json
 {
   "hooks": {
     "Notification": [
-      { "hooks": [ { "type": "command", "command": "/ABS/PATH/notify.sh" } ] }
+      { "hooks": [ { "type": "command",
+        "command": "/home/YOU/.claude/claude-notify/hooks/notify.sh" } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "/ABS/PATH/notify.sh" } ] }
+      { "hooks": [ { "type": "command",
+        "command": "/home/YOU/.claude/claude-notify/hooks/notify.sh" } ] }
     ]
   }
 }
 ```
 
-`chmod +x notify.sh` first.
+Use an **absolute** path (hooks don't expand `~`). Restart Claude Code.
 
-## Dependencies per OS
+> **Don't run both options at once** — you'll get two notifications per event.
 
-- **Linux** — `notify-send` (`sudo apt install libnotify-bin`). Sound is
-  optional (`canberra-gtk-play` or `paplay`, usually already present).
-- **macOS** — nothing; uses built-in `osascript`.
-- **Windows** — nicer toasts with `Install-Module BurntToast`; otherwise falls
-  back to a message box. WSL bounces the toast to Windows automatically.
+---
 
-## Test it
+## Setup — OS dependencies
+
+The script auto-detects your OS. Install the matching notifier:
+
+| OS | Needs | Install |
+|----|-------|---------|
+| **Linux** | `notify-send` | `sudo apt install libnotify-bin` (Debian/Mint/Ubuntu) · `sudo dnf install libnotify` (Fedora) |
+| **Linux sound** *(optional)* | `canberra-gtk-play` or `paplay` | usually preinstalled with the desktop |
+| **macOS** | nothing | built-in `osascript` |
+| **Windows** | nicer toasts via BurntToast | `Install-Module BurntToast` in PowerShell (else falls back to a message box) |
+| **WSL** | — | bounces the toast to Windows automatically |
+
+`jq` is used if present (cleaner JSON parse) but **not required** — falls back to
+`grep`/`sed`.
+
+### Verify
 
 ```bash
-echo '{"hook_event_name":"Stop","message":"","cwd":"'"$PWD"'"}' | ./hooks/notify.sh
+echo '{"hook_event_name":"Stop","message":"","cwd":"'"$PWD"'"}' \
+  | ~/.claude/claude-notify/hooks/notify.sh
 ```
 
-A desktop notification should appear.
+A desktop notification should appear. If it doesn't, see **Troubleshooting**.
 
-## Customize
+---
 
-Edit `hooks/notify.sh` — change titles/bodies in the `case "$event"` block, or
-swap the sound. Want a phone ping (Telegram / ntfy / Pushover) instead of a
-local toast? Add a `curl` call in the OS block.
+## Configuration
+
+### Which events notify
+
+Edit `hooks/hooks.json` (plugin) or your `settings.json` (manual). Add or remove
+event keys. Useful extras:
+
+```jsonc
+{
+  "SubagentStop": [                       // ping when a subagent finishes too
+    { "hooks": [ { "type": "command",
+      "command": "${CLAUDE_PLUGIN_ROOT}/hooks/notify.sh" } ] }
+  ]
+}
+```
+
+Full event list: `Notification`, `Stop`, `SubagentStop`, `PreToolUse`,
+`PostToolUse`, `UserPromptSubmit`, `SessionStart`, `SessionEnd`. The script
+already handles `SubagentStop`; other events fall through to a generic title.
+
+### Payload fields available to the script
+
+`notify.sh` reads these from the stdin JSON:
+
+| Field | Meaning |
+|-------|---------|
+| `hook_event_name` | which event fired |
+| `message` | event message (e.g. the permission prompt text) |
+| `cwd` | project directory (shown as `[project-name]`) |
+| `session_id` | current session id |
+
+---
+
+## Customization
+
+All in `hooks/notify.sh`:
+
+- **Titles / bodies** — edit the `case "$event"` block:
+  ```bash
+  Stop|SubagentStop)
+    title="✅ Claude done"
+    body="${message:-Finished in $project}"
+    ;;
+  ```
+- **Sound (Linux)** — swap the `.oga` path, or add your own:
+  ```bash
+  paplay ~/sounds/ding.oga
+  ```
+- **Sound (macOS)** — change `sound name "Glass"` to any of `Ping`, `Pop`,
+  `Hero`, …
+- **Phone / remote ping** — instead of a local toast, `curl` a push service.
+  Drop one of these into the OS block:
+  ```bash
+  # ntfy.sh (free, no account)
+  curl -s -d "$body" ntfy.sh/your-private-topic >/dev/null
+  # Telegram bot
+  curl -s "https://api.telegram.org/bot<TOKEN>/sendMessage" \
+    --data-urlencode "chat_id=<CHAT_ID>" --data-urlencode "text=$title: $body" >/dev/null
+  ```
+
+After editing, no rebuild needed — the next hook run uses the new script.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| No notification at all | Run the **Verify** command above. If nothing pops, `notify-send` isn't installed or your desktop blocks it. |
+| `Failed to play sound: Sound disabled` | System sound is muted — visual toast still works. Not a plugin bug. |
+| Toast but no `[project]` name | `jq` missing **and** payload had unusual spacing; install `jq` for reliable parsing. |
+| Hooks didn't load | Restart Claude Code, or `/hooks` → confirm `Stop` + `Notification` are listed and approved. |
+| Two notifications per event | You have both the plugin **and** manual `settings.json` hooks — keep one. |
+
+---
+
+## Repo layout
+
+```
+claude-notify/
+├── .claude-plugin/
+│   ├── plugin.json        # plugin manifest → points to hooks/hooks.json
+│   └── marketplace.json   # lets `/plugin marketplace add` find it
+├── hooks/
+│   ├── hooks.json         # binds Stop + Notification → notify.sh
+│   └── notify.sh          # the cross-platform notifier
+└── README.md
+```
+
+## License
+
+MIT — do what you want.
