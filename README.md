@@ -125,6 +125,27 @@ Full event list: `Notification`, `Stop`, `SubagentStop`, `PreToolUse`,
 `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `SessionEnd`. The script
 already handles `SubagentStop`; other events fall through to a generic title.
 
+### Fullscreen / Do Not Disturb (Linux)
+
+Many Linux desktops (Cinnamon, GNOME, …) **hide `normal` notifications while a
+fullscreen window is focused** — watching a video in VLC, a game, etc. So by
+default this plugin sends **`critical`** urgency, which pierces fullscreen and
+Do-Not-Disturb. Tune it with env vars:
+
+| Env var | Default | Effect |
+|---------|---------|--------|
+| `CLAUDE_NOTIFY_URGENCY` | `critical` | `normal` = quieter but hidden under fullscreen; `low` = subtle |
+| `CLAUDE_NOTIFY_TIMEOUT` | `8000` | toast lifetime in ms (note: some daemons keep `critical` sticky until dismissed) |
+
+Set them in your shell profile (`~/.bashrc`) so hooks inherit them:
+
+```bash
+export CLAUDE_NOTIFY_URGENCY=normal   # e.g. if sticky critical toasts annoy you
+```
+
+Still nothing over fullscreen? Check your desktop's notification settings — e.g.
+Cinnamon → *Notifications* → allow during fullscreen / disable Do Not Disturb.
+
 ### Payload fields available to the script
 
 `notify.sh` reads these from the stdin JSON:

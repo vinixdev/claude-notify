@@ -42,6 +42,13 @@ case "$event" in
 esac
 body="[$project] $body"
 
+# Urgency: 'critical' pierces fullscreen + Do-Not-Disturb (many Linux desktops,
+# e.g. Cinnamon/GNOME, hide 'normal' notifications while a fullscreen window —
+# VLC, a game, a video — is focused). Override with CLAUDE_NOTIFY_URGENCY=normal
+# if the sticky critical toast is too much during active use.
+urgency="${CLAUDE_NOTIFY_URGENCY:-critical}"
+timeout_ms="${CLAUDE_NOTIFY_TIMEOUT:-8000}"
+
 # --- fire the notification per OS ----------------------------------------
 os="$(uname -s 2>/dev/null || echo unknown)"
 
@@ -55,7 +62,7 @@ case "$os" in
         "[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); \
          [System.Windows.Forms.MessageBox]::Show('$body','$title')" 2>/dev/null || true
     else
-      notify-send -a "Claude Code" -u normal "$title" "$body" 2>/dev/null || true
+      notify-send -a "Claude Code" -u "$urgency" -t "$timeout_ms" "$title" "$body" 2>/dev/null || true
       # sound (first tool that exists wins)
       { command -v canberra-gtk-play >/dev/null 2>&1 && canberra-gtk-play -i message; } \
         || { command -v paplay >/dev/null 2>&1 && \
