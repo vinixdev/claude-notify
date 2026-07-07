@@ -8,6 +8,9 @@ set -euo pipefail
 
 payload="$(cat)"
 
+# --- debug: prove Claude Code actually invoked this hook (temporary) ------
+printf '%s fired: %s\n' "$(date '+%F %T')" "$payload" >> "$HOME/.claude/claude-notify.log" 2>/dev/null || true
+
 # --- parse the JSON payload (prefer jq, fall back to grep/sed) ------------
 get() {
   local key="$1"
