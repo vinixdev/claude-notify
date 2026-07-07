@@ -15,10 +15,6 @@ export DISPLAY="${DISPLAY:-:0}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$uid/bus}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$uid}"
 
-# --- debug: prove Claude Code actually invoked this hook (temporary) ------
-printf '%s fired (DISPLAY=%s DBUS=%s): %s\n' "$(date '+%F %T')" "$DISPLAY" "$DBUS_SESSION_BUS_ADDRESS" "$payload" \
-  >> "$HOME/.claude/claude-notify.log" 2>/dev/null || true
-
 # --- parse the JSON payload (prefer jq, fall back to grep/sed) ------------
 get() {
   local key="$1"
@@ -73,8 +69,7 @@ case "$os" in
         "[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); \
          [System.Windows.Forms.MessageBox]::Show('$body','$title')" 2>/dev/null || true
     else
-      notify-send -a "Claude Code" -u "$urgency" -t "$timeout_ms" "$title" "$body" \
-        2>>"$HOME/.claude/claude-notify.log" || echo "notify-send failed rc=$?" >> "$HOME/.claude/claude-notify.log"
+      notify-send -a "Claude Code" -u "$urgency" -t "$timeout_ms" "$title" "$body" 2>/dev/null || true
       # sound (first tool that exists wins)
       { command -v canberra-gtk-play >/dev/null 2>&1 && canberra-gtk-play -i message; } \
         || { command -v paplay >/dev/null 2>&1 && \

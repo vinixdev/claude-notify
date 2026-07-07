@@ -199,6 +199,8 @@ After editing, no rebuild needed — the next hook run uses the new script.
 | Toast but no `[project]` name | `jq` missing **and** payload had unusual spacing; install `jq` for reliable parsing. |
 | Hooks didn't load | Restart Claude Code, or `/hooks` → confirm `Stop` + `Notification` are listed and approved. |
 | Two notifications per event | You have both the plugin **and** manual `settings.json` hooks — keep one. |
+| `notify-send` returns 0 but no popup (Cinnamon/Mint) | The notifications applet ignores **transient** popups. Panel → right-click *Notifications* applet → *Configure* → turn **off** "Ignore transient notifications", then reload it (`cinnamon --replace &`). |
+| Hook runs but `notify-send` reaches nothing | Hook process lacked desktop env — the script now restores `DISPLAY`/`DBUS_SESSION_BUS_ADDRESS`/`XDG_RUNTIME_DIR`; ensure they match your session (`echo $DBUS_SESSION_BUS_ADDRESS`). |
 
 ---
 
