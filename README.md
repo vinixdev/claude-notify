@@ -19,7 +19,14 @@ lifecycle events. This plugin binds two of them to one script:
 | Hook | Fires when | Notification |
 |------|------------|--------------|
 | `Notification` | Claude is waiting for your input or permission | **needs you** |
+| `PreToolUse` (`AskUserQuestion`/`ExitPlanMode`) | Claude is asking YOU a question / wants a plan reviewed | **needs your answer** |
 | `Stop` | Claude finished responding (task done) | **task done** |
+
+> **Why `PreToolUse`?** `Notification` only fires for permission prompts and idle.
+> With `permission_mode=auto` (the default in the VS Code extension) there are no
+> permission prompts, so it never fires — Claude's questions arrive as the
+> `AskUserQuestion` tool instead. Hooking `PreToolUse` is what makes questions
+> notify there.
 
 The script (`hooks/notify.sh`) reads the hook's JSON payload on stdin, picks a
 title/body, and calls your OS's native notifier. Zero runtime deps beyond the
@@ -200,6 +207,8 @@ After editing, no rebuild needed — the next hook run uses the new script.
 | Hooks didn't load | Restart Claude Code, or `/hooks` → confirm `Stop` + `Notification` are listed and approved. |
 | Two notifications per event | You have both the plugin **and** manual `settings.json` hooks — keep one. |
 | Nothing fires on **task done**, but permission prompts DO notify (esp. in the VS Code extension) | Fixed in 1.0.3. The grep JSON fallback exited 1 on a missing key, and `set -euo pipefail` killed the script — a `Stop` payload has no `message` field, so `Stop` never notified. Update the plugin. |
+| Toast never goes away | Fixed in 1.1.0. `critical` urgency is sticky by spec (daemons ignore the expire-timeout), so the plugin now captures the notification id and closes it itself after `CLAUDE_NOTIFY_TIMEOUT` ms — keeping fullscreen-piercing *and* auto-dismiss. |
+| Questions from Claude don't notify (VS Code extension) | Fixed in 1.1.0 — see the `PreToolUse` row above. Requires a restart so the new hook registers. |
 | `notify-send` returns 0 but no popup (Cinnamon/Mint) | The notifications applet ignores **transient** popups. Panel → right-click *Notifications* applet → *Configure* → turn **off** "Ignore transient notifications", then reload it (`cinnamon --replace &`). |
 | Hook runs but `notify-send` reaches nothing | Hook process lacked desktop env — the script now restores `DISPLAY`/`DBUS_SESSION_BUS_ADDRESS`/`XDG_RUNTIME_DIR`; ensure they match your session (`echo $DBUS_SESSION_BUS_ADDRESS`). |
 

@@ -35,6 +35,7 @@ get() {
 event="$(get hook_event_name)"
 message="$(get message)"
 cwd="$(get cwd)"
+tool="$(get tool_name)"
 project="$(basename "${cwd:-$PWD}")"
 
 # --- pick title / body per event -----------------------------------------
@@ -42,6 +43,16 @@ case "$event" in
   Notification)
     title="Claude Code — needs you"
     body="${message:-Waiting for your input}"
+    ;;
+  # Claude asking YOU something. `Notification` only fires for permission
+  # prompts / idle, so with permission_mode=auto (the default in the VS Code
+  # extension) it never fires — the question arrives as a TOOL call instead.
+  PreToolUse)
+    title="Claude Code — needs your answer"
+    case "$tool" in
+      ExitPlanMode) body="Review the plan" ;;
+      *)            body="Claude asked you a question" ;;
+    esac
     ;;
   Stop|SubagentStop)
     title="Claude Code — task done"
@@ -74,7 +85,19 @@ case "$os" in
         "[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); \
          [System.Windows.Forms.MessageBox]::Show('$body','$title')" 2>/dev/null || true
     else
-      notify-send -a "Claude Code" -u "$urgency" -t "$timeout_ms" "$title" "$body" 2>/dev/null || true
+      # `critical` is STICKY by spec — daemons ignore the expire-timeout for it,
+      # which is why the toast used to sit there forever. So keep critical (it's
+      # what pierces fullscreen/DND) but close it ourselves: grab the id and
+      # dismiss it after the timeout, detached so it outlives this hook process.
+      nid="$(notify-send --print-id -a "Claude Code" -u "$urgency" -t "$timeout_ms" \
+              "$title" "$body" 2>/dev/null || true)"
+      if [ -n "${nid//[^0-9]/}" ] && command -v gdbus >/dev/null 2>&1; then
+        setsid bash -c "sleep $(( timeout_ms / 1000 )); \
+          gdbus call --session --dest org.freedesktop.Notifications \
+            --object-path /org/freedesktop/Notifications \
+            --method org.freedesktop.Notifications.CloseNotification ${nid//[^0-9]/}" \
+          >/dev/null 2>&1 < /dev/null &
+      fi
       # sound (first tool that exists wins)
       { command -v canberra-gtk-play >/dev/null 2>&1 && canberra-gtk-play -i message; } \
         || { command -v paplay >/dev/null 2>&1 && \

@@ -1,7 +1,7 @@
 {
   "name": "claude-notify",
   "description": "Native desktop notification (+ sound) when Claude Code finishes a task or needs your input. Cross-platform: Linux, macOS, Windows/WSL.",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "author": { "name": "xinix" },
   "keywords": ["notification", "desktop", "hooks", "notify-send", "toast"],
   "hooks": "./hooks/hooks.json"
