@@ -199,6 +199,7 @@ After editing, no rebuild needed — the next hook run uses the new script.
 | Toast but no `[project]` name | `jq` missing **and** payload had unusual spacing; install `jq` for reliable parsing. |
 | Hooks didn't load | Restart Claude Code, or `/hooks` → confirm `Stop` + `Notification` are listed and approved. |
 | Two notifications per event | You have both the plugin **and** manual `settings.json` hooks — keep one. |
+| Nothing fires on **task done**, but permission prompts DO notify (esp. in the VS Code extension) | Fixed in 1.0.3. The grep JSON fallback exited 1 on a missing key, and `set -euo pipefail` killed the script — a `Stop` payload has no `message` field, so `Stop` never notified. Update the plugin. |
 | `notify-send` returns 0 but no popup (Cinnamon/Mint) | The notifications applet ignores **transient** popups. Panel → right-click *Notifications* applet → *Configure* → turn **off** "Ignore transient notifications", then reload it (`cinnamon --replace &`). |
 | Hook runs but `notify-send` reaches nothing | Hook process lacked desktop env — the script now restores `DISPLAY`/`DBUS_SESSION_BUS_ADDRESS`/`XDG_RUNTIME_DIR`; ensure they match your session (`echo $DBUS_SESSION_BUS_ADDRESS`). |
 

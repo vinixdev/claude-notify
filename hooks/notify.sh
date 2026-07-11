@@ -16,14 +16,19 @@ export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$uid}"
 
 # --- parse the JSON payload (prefer jq, fall back to grep/sed) ------------
+# A MISSING key must yield an empty string, never a failure: `grep` exits 1 when
+# it matches nothing, and under `set -euo pipefail` that aborted the whole script.
+# A `Stop` payload has no `message` field, so `Stop` silently never notified —
+# only `Notification` (which carries `message`) survived. Hence the trailing
+# `|| true` on both branches.
 get() {
   local key="$1"
   if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$payload" | jq -r --arg k "$key" '.[$k] // empty'
+    printf '%s' "$payload" | jq -r --arg k "$key" '.[$k] // empty' 2>/dev/null || true
   else
     printf '%s' "$payload" \
-      | grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" \
-      | head -n1 | sed 's/.*:[[:space:]]*"\(.*\)"/\1/'
+      | { grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" || true; } \
+      | head -n1 | sed 's/.*:[[:space:]]*"\(.*\)"/\1/' || true
   fi
 }
 
